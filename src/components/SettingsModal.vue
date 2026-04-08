@@ -30,23 +30,31 @@ const isRecordingHotkey = ref(false)
 
 const changelog = [
   {
+    version: 'v0.1.4',
+    date: '2026-04-08',
+    changes: [
+      '升级 Node.js 22 修复构建问题',
+      '改进翻译错误提示信息',
+      '优化本地模型连接支持'
+    ]
+  },
+  {
+    version: 'v0.1.3',
+    date: '2026-04-08',
+    changes: [
+      '修复本地模型连接 CSP 问题',
+      '添加版本检查更新功能',
+      '支持流式输出'
+    ]
+  },
+  {
     version: 'v0.1.2',
     date: '2026-04-08',
     changes: [
       '修复 Windows/Linux 构建失败问题',
       '优化 GitHub Actions 多平台构建',
       '修复文件名中文乱码问题',
-      '支持连接本地 AI 模型服务',
-      '添加流式输出显示',
-      '优化 CSP 安全策略'
-    ]
-  },
-  {
-    version: 'v0.1.1',
-    date: '2026-04-08',
-    changes: [
-      '简化 GitHub Actions workflow',
-      '优化多平台构建配置'
+      '支持连接本地 AI 模型服务'
     ]
   },
   {

@@ -19,7 +19,7 @@ export interface UpdateInfo {
 
 export function useUpdateCheck() {
   const updateInfo = ref<UpdateInfo>({
-    currentVersion: '0.1.2',
+    currentVersion: '0.1.4',
     latestVersion: '',
     release: null,
     hasUpdate: false,

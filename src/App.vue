@@ -17,7 +17,7 @@ const targetText = ref('')
 const isStreaming = ref(false)
 const settingsModalOpen = ref(false)
 const isDark = ref(false)
-const currentVersion = ref('0.1.2')
+const currentVersion = ref('0.1.4')
 
 onMounted(async () => {
   await loadConfig()

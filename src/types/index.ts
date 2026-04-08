@@ -12,8 +12,8 @@ export interface ToastOptions {
   duration?: number
 }
 
-export const DEFAULT_MODEL = 'Qwen3.5-0.8B'
-export const DEFAULT_BASE_URL = 'http://127.0.0.1:8000/v1'
+export const DEFAULT_MODEL = 'gpt-3.5-turbo'
+export const DEFAULT_BASE_URL = 'https://api.openai.com/v1'
 
 export const SYSTEM_PROMPT = `你是一个专业的翻译助手。你的任务是进行中英互译。
 规则：
