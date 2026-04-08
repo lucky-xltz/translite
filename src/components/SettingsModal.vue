@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
-import { Settings2, X, Rocket, Keyboard, Sun, Moon, FileText } from 'lucide-vue-next'
+import { Settings2, X, Rocket, Keyboard, Sun, Moon, FileText, RefreshCw, ExternalLink } from 'lucide-vue-next'
 import type { TranslateConfig } from '@/types'
 import { DEFAULT_MODEL } from '@/types'
+import { useUpdateCheck } from '@/composables/useUpdateCheck'
 
 const props = defineProps<{
   open: boolean
   config: TranslateConfig
   configPath: string
   isDark: boolean
+  currentVersion: string
 }>()
 
 const emit = defineEmits<{
@@ -16,6 +18,8 @@ const emit = defineEmits<{
   save: [config: Partial<TranslateConfig>]
   toggleDark: []
 }>()
+
+const { updateInfo, checkForUpdate } = useUpdateCheck()
 
 const activeTab = ref<'model' | 'system' | 'changelog'>('model')
 const inputApiKey = ref('')
@@ -26,16 +30,36 @@ const isRecordingHotkey = ref(false)
 
 const changelog = [
   {
+    version: 'v0.1.2',
+    date: '2026-04-08',
+    changes: [
+      '修复 Windows/Linux 构建失败问题',
+      '优化 GitHub Actions 多平台构建',
+      '修复文件名中文乱码问题',
+      '支持连接本地 AI 模型服务',
+      '添加流式输出显示',
+      '优化 CSP 安全策略'
+    ]
+  },
+  {
+    version: 'v0.1.1',
+    date: '2026-04-08',
+    changes: [
+      '简化 GitHub Actions workflow',
+      '优化多平台构建配置'
+    ]
+  },
+  {
     version: 'v0.1.0',
     date: '2026-04-08',
     changes: [
       '初始版本发布',
       '支持中英互译',
-      '流式输出显示',
-      '深色模式支持',
-      '全局快捷键',
+      '全局快捷键 (Cmd+Shift+T)',
+      '系统托盘后台运行',
       '开机自动启动',
-      '本地配置文件'
+      '深色模式支持',
+      '本地配置文件管理'
     ]
   }
 ]
@@ -47,6 +71,9 @@ watch(() => props.open, (isOpen) => {
     inputBaseUrl.value = props.config.baseUrl || ''
     inputHotkey.value = props.config.hotkey || 'CmdOrCtrl+Shift+T'
     isRecordingHotkey.value = false
+    
+    // 检查更新
+    checkForUpdate()
   }
 })
 
@@ -103,6 +130,16 @@ function save() {
     })
   }
   close()
+}
+
+async function handleCheckUpdate() {
+  await checkForUpdate()
+}
+
+function openReleasePage() {
+  if (updateInfo.value.release?.html_url) {
+    window.open(updateInfo.value.release.html_url, '_blank')
+  }
 }
 </script>
 
@@ -186,13 +223,14 @@ function save() {
             />
           </div>
           <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">API Base URL (可选)</label>
+            <label class="block text-sm font-medium text-slate-700 mb-1">API Base URL</label>
             <input
               type="text"
               v-model="inputBaseUrl"
               class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 block p-2.5 outline-none transition-all placeholder-slate-400"
-              placeholder="留空使用默认地址"
+              placeholder="例如: http://localhost:1234/v1 或使用 OpenAI 兼容接口"
             />
+            <p class="mt-1 text-xs text-slate-400">支持本地模型服务 (如 Ollama)、代理服务器或 OpenAI 兼容接口</p>
           </div>
         </div>
 
@@ -284,7 +322,7 @@ function save() {
                   {{ isRecordingHotkey ? '按下任意键...' : '点击录制' }}
                 </span>
               </div>
-              <p class="text-xs text-slate-400 mt-1.5 ml-1">点击输入框，直接按下想要设置的按键 (如 Alt+T)</p>
+              <p class="text-xs text-slate-400 mt-1.5 ml-1">点击输入框，直接按下想要设置的按键组合</p>
             </div>
           </div>
 
@@ -298,10 +336,63 @@ function save() {
 
         <!-- 更新日志 -->
         <div v-if="activeTab === 'changelog'" class="space-y-6">
+          <!-- 版本检查 -->
+          <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <FileText class="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 class="text-sm font-medium text-slate-700">
+                    当前版本: v{{ currentVersion }}
+                  </h3>
+                  <p v-if="updateInfo.isChecking" class="text-xs text-slate-400 mt-0.5">
+                    检查更新中...
+                  </p>
+                  <p v-else-if="updateInfo.error" class="text-xs text-red-500 mt-0.5">
+                    {{ updateInfo.error }}
+                  </p>
+                  <p v-else-if="updateInfo.hasUpdate" class="text-xs text-green-600 mt-0.5">
+                    发现新版本: {{ updateInfo.latestVersion }}
+                  </p>
+                  <p v-else class="text-xs text-slate-400 mt-0.5">
+                    已是最新版本
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <button
+                  v-if="updateInfo.hasUpdate"
+                  @click="openReleasePage"
+                  class="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1"
+                >
+                  <ExternalLink class="w-3 h-3" />
+                  下载
+                </button>
+                <button
+                  @click="handleCheckUpdate"
+                  :disabled="updateInfo.isChecking"
+                  class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
+                  title="检查更新"
+                >
+                  <RefreshCw :class="['w-4 h-4', updateInfo.isChecking && 'animate-spin']" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 更新列表 -->
           <div v-for="release in changelog" :key="release.version" class="space-y-3">
             <div class="flex items-center gap-3">
               <span class="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-medium rounded-full">{{ release.version }}</span>
               <span class="text-xs text-slate-400">{{ release.date }}</span>
+              <span
+                v-if="release.version === `v${currentVersion}`"
+                class="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full"
+              >
+                当前
+              </span>
             </div>
             <ul class="space-y-2">
               <li

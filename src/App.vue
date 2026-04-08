@@ -17,6 +17,7 @@ const targetText = ref('')
 const isStreaming = ref(false)
 const settingsModalOpen = ref(false)
 const isDark = ref(false)
+const currentVersion = ref('0.1.2')
 
 onMounted(async () => {
   await loadConfig()
@@ -124,6 +125,7 @@ function handleSaveSettings(newConfig: Partial<{ apiKey: string; model: string; 
       :config="config"
       :config-path="configPath"
       :is-dark="isDark"
+      :current-version="currentVersion"
       @save="handleSaveSettings"
       @toggle-dark="toggleDark"
     />
