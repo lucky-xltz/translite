@@ -69,11 +69,10 @@ fn load_config() -> Result<Config, String> {
 #[tauri::command]
 fn save_config(config: Config) -> Result<(), String> {
     let path = get_config_path();
-    let json = serde_json::to_string_pretty(&config)
-        .map_err(|e| format!("序列化配置失败: {}", e))?;
+    let json =
+        serde_json::to_string_pretty(&config).map_err(|e| format!("序列化配置失败: {}", e))?;
 
-    fs::write(&path, json)
-        .map_err(|e| format!("写入配置文件失败: {}", e))?;
+    fs::write(&path, json).map_err(|e| format!("写入配置文件失败: {}", e))?;
 
     Ok(())
 }
@@ -142,12 +141,15 @@ fn register_hotkey(app: tauri::AppHandle, hotkey: String) -> Result<(), String> 
 
         let _ = app.global_shortcut().unregister_all();
 
-        if let Err(e) = app.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, _event| {
-            if let Some(window) = app_handle.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
-        }) {
+        if let Err(e) =
+            app.global_shortcut()
+                .on_shortcut(shortcut, move |_app, _shortcut, _event| {
+                    if let Some(window) = app_handle.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                })
+        {
             return Err(format!("注册快捷键失败: {}", e));
         }
     }
@@ -165,6 +167,7 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             load_config,
             save_config,
@@ -180,12 +183,14 @@ pub fn run() {
                 let shortcut = Shortcut::new(modifiers, code);
                 let app_handle = app.handle().clone();
 
-                let _ = app.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, _event| {
-                    if let Some(window) = app_handle.get_webview_window("main") {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                    }
-                });
+                let _ =
+                    app.global_shortcut()
+                        .on_shortcut(shortcut, move |_app, _shortcut, _event| {
+                            if let Some(window) = app_handle.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        });
             }
 
             // 创建系统托盘
