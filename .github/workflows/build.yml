@@ -17,8 +17,8 @@ jobs:
         platform:
           - { os: macos-latest, target: aarch64-apple-darwin }
           - { os: macos-latest, target: x86_64-apple-darwin }
-          - { os: ubuntu-22.04, target: '' }
-          - { os: windows-latest, target: '' }
+          - { os: ubuntu-22.04 }
+          - { os: windows-latest }
 
     runs-on: ${{ matrix.platform.os }}
     steps:
@@ -34,7 +34,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Add Rust target
+      - name: Add Rust target for macOS
         if: matrix.platform.target != ''
         run: rustup target add ${{ matrix.platform.target }}
 
@@ -47,7 +47,8 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Build Tauri app
+      - name: Build Tauri app for macOS
+        if: matrix.platform.target != ''
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -57,4 +58,16 @@ jobs:
           releaseBody: '轻译 - AI翻译工具 (QingYi - AI Translator)'
           releaseDraft: false
           prerelease: false
-          args: ${{ matrix.platform.target == '' && '' || format('--target {0}', matrix.platform.target) }}
+          args: '--target ${{ matrix.platform.target }}'
+
+      - name: Build Tauri app for Windows/Linux
+        if: matrix.platform.target == ''
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'QingYi ${{ github.ref_name }}'
+          releaseBody: '轻译 - AI翻译工具 (QingYi - AI Translator)'
+          releaseDraft: false
+          prerelease: false
