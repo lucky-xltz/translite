@@ -10,89 +10,51 @@ permissions:
   contents: write
 
 jobs:
-  build-macos-aarch64:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      - uses: dtolnay/rust-toolchain@stable
-      - run: rustup target add aarch64-apple-darwin
-      - run: npm ci
-      - uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: '轻译 ${{ github.ref_name }}'
-          releaseBody: '轻译 - 智能中英互译工具'
-          releaseDraft: false
-          prerelease: false
-          args: '--target aarch64-apple-darwin'
+  build-tauri:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - { os: macos-latest, target: aarch64-apple-darwin }
+          - { os: macos-latest, target: x86_64-apple-darwin }
+          - { os: ubuntu-22.04, target: '' }
+          - { os: windows-latest, target: '' }
 
-  build-macos-x64:
-    runs-on: macos-latest
+    runs-on: ${{ matrix.platform.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      - uses: dtolnay/rust-toolchain@stable
-      - run: rustup target add x86_64-apple-darwin
-      - run: npm ci
-      - uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: '轻译 ${{ github.ref_name }}'
-          releaseBody: '轻译 - 智能中英互译工具'
-          releaseDraft: false
-          prerelease: false
-          args: '--target x86_64-apple-darwin'
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-  build-ubuntu:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-      - uses: dtolnay/rust-toolchain@stable
-      - run: |
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add Rust target
+        if: matrix.platform.target != ''
+        run: rustup target add ${{ matrix.platform.target }}
+
+      - name: Install Linux dependencies
+        if: matrix.platform.os == 'ubuntu-22.04'
+        run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-      - run: npm ci
-      - uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: '轻译 ${{ github.ref_name }}'
-          releaseBody: '轻译 - 智能中英互译工具'
-          releaseDraft: false
-          prerelease: false
 
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      - uses: dtolnay/rust-toolchain@stable
-      - run: npm ci
-      - uses: tauri-apps/tauri-action@v0
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: '轻译 ${{ github.ref_name }}'
-          releaseBody: '轻译 - 智能中英互译工具'
+          releaseName: 'QingYi ${{ github.ref_name }}'
+          releaseBody: '轻译 - AI翻译工具 (QingYi - AI Translator)'
           releaseDraft: false
           prerelease: false
+          args: ${{ matrix.platform.target == '' && '' || format('--target {0}', matrix.platform.target) }}
