@@ -154,10 +154,10 @@ function openReleasePage() {
 <template>
   <div
     v-if="open"
-    class="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center opacity-100 transition-opacity duration-300"
+    class="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center opacity-100 transition-opacity duration-300 p-4"
   >
-    <div class="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col transition-transform duration-300 border border-slate-100">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+    <div class="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col transition-transform duration-300 border border-slate-100">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
         <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
           <Settings2 class="w-5 h-5 text-blue-500" />
           设置
@@ -170,7 +170,7 @@ function openReleasePage() {
         </button>
       </div>
 
-      <div class="flex border-b border-slate-100">
+      <div class="flex border-b border-slate-100 shrink-0">
         <button
           @click="activeTab = 'model'"
           :class="[
