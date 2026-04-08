@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+@theme {
+  --shadow-soft: 0 10px 40px -10px rgba(0,0,0,0.08);
+  --shadow-inner-soft: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+}
+
+html, body, #app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.window-container {
+  height: 100vh;
+  overflow: hidden;
+  background: white;
+}

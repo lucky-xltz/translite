@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 智能翻译</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* 自定义滚动条，使其看起来更像桌面客户端 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* 文本域去除默认聚焦轮廓 */
+        textarea:focus {
+            outline: none;
+        }
+
+        /* 渐变背景动画 */
+        .bg-animated {
+            background: linear-gradient(120deg, #e0c3fc 0%, #8ec5fc 100%);
+            background-size: 200% 200%;
+            animation: gradientAnimation 15s ease infinite;
+        }
+
+        @keyframes gradientAnimation {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Toast 动画 */
+        .toast-enter {
+            transform: translateY(100%);
+            opacity: 0;
+        }
+        .toast-enter-active {
+            transform: translateY(0);
+            opacity: 1;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .toast-leave-active {
+            transform: translateY(100%);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    borderRadius: {
+                        '2xl': '1rem',
+                        '3xl': '1.5rem',
+                        '4xl': '2rem',
+                    },
+                    boxShadow: {
+                        'soft': '0 10px 40px -10px rgba(0,0,0,0.08)',
+                        'inner-soft': 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-animated min-h-screen flex items-center justify-center p-4 sm:p-8 font-sans text-slate-800 antialiased selection:bg-blue-200">
+
+<!-- 恢复窗口的浮动按钮 (默认隐藏) -->
+<button id="restoreBtn" onclick="handleRestore()" class="fixed hidden items-center gap-2 px-6 py-3 bg-white/90 backdrop-blur-md rounded-full shadow-lg border border-slate-200 text-slate-700 hover:text-blue-600 transition-all hover:scale-105 z-40">
+    <i data-lucide="monitor" class="w-5 h-5"></i>
+    <span class="font-medium">恢复翻译窗口</span>
+</button>
+
+<!-- 主窗口容器 -->
+<div id="appWindow" class="w-full max-w-5xl bg-white/90 backdrop-blur-2xl rounded-4xl shadow-soft border border-white/50 overflow-hidden flex flex-col transition-all duration-500 relative" style="height: 85vh; min-height: 500px;">
+
+    <!-- 顶部标题栏 (模拟桌面客户端) -->
+    <header class="flex items-center justify-between px-6 py-4 border-b border-slate-100/50 bg-white/50 select-none">
+        <div class="flex items-center gap-3">
+            <!-- 窗口控制按钮 (类似Mac红黄绿) -->
+            <div class="flex items-center gap-2 mr-3">
+                <button onclick="handleClose()" class="w-3.5 h-3.5 rounded-full bg-red-400 hover:bg-red-500 shadow-sm flex items-center justify-center group transition-colors" title="关闭">
+                    <i data-lucide="x" class="w-2.5 h-2.5 text-red-900 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                </button>
+                <button onclick="handleMinimize()" class="w-3.5 h-3.5 rounded-full bg-yellow-400 hover:bg-yellow-500 shadow-sm flex items-center justify-center group transition-colors" title="最小化">
+                    <i data-lucide="minus" class="w-2.5 h-2.5 text-yellow-900 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                </button>
+                <button onclick="handleMaximize()" class="w-3.5 h-3.5 rounded-full bg-green-400 hover:bg-green-500 shadow-sm flex items-center justify-center group transition-colors" title="最大化">
+                    <i data-lucide="maximize-2" class="w-2.5 h-2.5 text-green-900 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                </button>
+            </div>
+
+            <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 flex items-center justify-center shadow-md">
+                <i data-lucide="languages" class="w-4 h-4 text-white"></i>
+            </div>
+            <h1 class="text-lg font-semibold tracking-wide text-slate-700">AI 翻译</h1>
+            <span class="px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 text-xs font-medium ml-2 border border-blue-100 hidden sm:inline-block">智能中英互译</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <button onclick="openSettings()" class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors" title="模型配置">
+                <i data-lucide="settings" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- 翻译主工作区 -->
+    <main id="appMain" class="flex-1 flex flex-col md:flex-row p-4 gap-4 overflow-hidden transition-all duration-300">
+
+        <!-- 左侧：输入区 -->
+        <div class="flex-1 flex flex-col bg-slate-50/50 rounded-3xl border border-slate-100/80 shadow-inner-soft relative group">
+            <!-- 输入区工具栏 -->
+            <div class="flex items-center justify-between px-5 py-3 border-b border-slate-100/50">
+                <span class="text-sm font-medium text-slate-500">自动检测 (中/英)</span>
+                <button onclick="clearAll()" class="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors" title="清空输入内容">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <textarea
+                    id="sourceText"
+                    class="flex-1 w-full bg-transparent resize-none p-5 pb-16 text-base leading-relaxed placeholder-slate-400 focus:outline-none transition-colors"
+                    placeholder="在此输入需要翻译的中文或英文内容..."></textarea>
+
+            <!-- 底部操作栏 (使用 pointer-events-none 防止遮挡文字点击) -->
+            <div class="p-4 flex justify-between items-center bg-gradient-to-t from-slate-50/90 to-transparent rounded-b-3xl absolute bottom-0 w-full pointer-events-none">
+                <span id="charCount" class="text-xs text-slate-400 font-medium ml-2 pointer-events-auto">0 字符</span>
+                <button
+                        id="translateBtn"
+                        onclick="handleTranslate()"
+                        class="flex items-center gap-2 px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl shadow-md hover:shadow-lg transition-all active:scale-95 font-medium pointer-events-auto">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    <span>翻译</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 中间分隔区 (桌面端显示连动动画) -->
+        <div class="hidden md:flex flex-col items-center justify-center z-10">
+            <div id="centerIconWrapper" class="w-10 h-10 rounded-full bg-white shadow-sm border border-slate-100 flex items-center justify-center text-slate-400 transition-all duration-300">
+                <i data-lucide="arrow-right-left" id="centerIcon" class="w-5 h-5 transition-transform duration-500"></i>
+            </div>
+        </div>
+
+        <!-- 右侧：输出区 -->
+        <div class="flex-1 flex flex-col bg-blue-50/30 rounded-3xl border border-blue-100/50 shadow-inner-soft relative group">
+            <!-- 输出区工具栏 -->
+            <div class="flex items-center justify-between px-5 py-3 border-b border-blue-100/50">
+                <span class="text-sm font-medium text-blue-600/80">翻译结果</span>
+            </div>
+
+            <div class="flex-1 relative">
+                    <textarea
+                            id="targetText"
+                            readonly
+                            class="w-full h-full bg-transparent resize-none p-5 pb-16 text-base leading-relaxed text-slate-700 focus:outline-none"
+                            placeholder="翻译结果将显示在这里..."></textarea>
+
+                <!-- 结果页底部操作栏 -->
+                <div class="p-4 flex justify-end items-center bg-gradient-to-t from-blue-50/90 to-transparent rounded-b-3xl absolute bottom-0 w-full pointer-events-none">
+                    <button
+                            onclick="copyResult()"
+                            class="flex items-center gap-2 px-5 py-2.5 bg-white border border-blue-200 text-blue-600 hover:bg-blue-50 rounded-2xl shadow-sm hover:shadow transition-all active:scale-95 font-medium pointer-events-auto"
+                            title="复制翻译结果">
+                        <i data-lucide="copy" class="w-4 h-4"></i>
+                        <span>复制</span>
+                    </button>
+                </div>
+
+                <!-- 加载遮罩 -->
+                <div id="loadingOverlay" class="absolute inset-0 bg-blue-50/60 backdrop-blur-[2px] rounded-b-3xl hidden flex-col items-center justify-center transition-opacity z-20">
+                    <div class="w-8 h-8 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin mb-3"></div>
+                    <span class="text-sm font-medium text-blue-600 animate-pulse">AI 正在思考...</span>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<!-- 模型配置弹窗 (Modal) -->
+<div id="settingsModal" class="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 hidden flex-col items-center justify-center opacity-0 transition-opacity duration-300">
+    <div id="settingsPanel" class="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl w-full max-w-md p-6 transform scale-95 transition-transform duration-300 border border-slate-100">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <i data-lucide="settings-2" class="w-5 h-5 text-blue-500"></i> 模型配置
+            </h2>
+            <button onclick="closeSettings()" class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">自定义 API Key (可选)</label>
+                <input type="password" id="customApiKey" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 block p-2.5 outline-none transition-all placeholder-slate-400" placeholder="留空则使用环境默认 Key">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">模型名称</label>
+                <input type="text" id="customModel" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 block p-2.5 outline-none transition-all" value="gemini-2.5-flash-preview-09-2025">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">翻译快捷键</label>
+                <div class="relative">
+                    <input type="text" id="customShortcut" readonly class="w-full bg-slate-50 border border-slate-200 text-blue-600 font-mono text-center text-sm rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 block p-2.5 outline-none cursor-pointer transition-all placeholder-slate-400" placeholder="点击后按下组合键" value="Ctrl+ENTER">
+                    <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">点击录制</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-1.5 ml-1">点击输入框，直接按下想要设置的按键 (如 Alt+T)</p>
+            </div>
+        </div>
+
+        <div class="mt-8 flex justify-end gap-3">
+            <button onclick="closeSettings()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">取消</button>
+            <button onclick="saveSettings()" class="px-5 py-2 text-sm font-medium text-white bg-slate-800 hover:bg-slate-700 shadow-md rounded-xl transition-all active:scale-95">保存配置</button>
+        </div>
+    </div>
+</div>
+
+<!-- 自定义 Toast 提示 -->
+<div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 toast-enter hidden z-50 pointer-events-none">
+    <i id="toastIcon" data-lucide="check-circle-2" class="w-5 h-5 text-green-400"></i>
+    <span id="toastMsg" class="text-sm font-medium">操作成功</span>
+</div>
+
+<script>
+    // 初始化图标
+    lucide.createIcons();
+
+    // API 密钥 (由执行环境在运行时提供)
+    const apiKey = "";
+
+    // 配置状态 (从本地存储加载，以便刷新不丢失)
+    let config = {
+        apiKey: localStorage.getItem('translate_api_key') || '',
+        model: localStorage.getItem('translate_model') || 'gemini-2.5-flash-preview-09-2025',
+        shortcut: localStorage.getItem('translate_shortcut') || 'Ctrl+ENTER'
+    };
+
+    const sourceTextArea = document.getElementById('sourceText');
+    const targetTextArea = document.getElementById('targetText');
+    const translateBtn = document.getElementById('translateBtn');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const charCountEl = document.getElementById('charCount');
+    const centerIcon = document.getElementById('centerIcon');
+    const centerIconWrapper = document.getElementById('centerIconWrapper');
+
+    // 系统指令：设定 AI 的角色和翻译规则
+    const systemInstruction = `你是一个专业的翻译助手。你的任务是进行中英互译。
+规则：
+1. 如果用户输入的是中文，请将其翻译成地道、流畅的英文。
+2. 如果用户输入的是英文，请将其翻译成自然、准确的中文。
+3. 如果输入包含中英混合，请将中文翻译成英文，英文翻译成中文，或者将其统一翻译为另一种主导语言，保持语句通顺。
+4. 只输出翻译结果！不要包含任何解释、注音、问候语或其他多余内容。
+5. 请尽量保留原始文本的排版、换行和格式。`;
+
+    // 字数统计逻辑
+    sourceTextArea.addEventListener('input', function() {
+        const length = this.value.length;
+        charCountEl.textContent = `${length} 字符`;
+    });
+
+    // 动态更新输入框的占位符显示当前的快捷键
+    function updatePlaceholder() {
+        let displayShortcut = config.shortcut;
+        // 兼容展示，如果在Mac上使用默认快捷键，视觉上展示Cmd
+        if (displayShortcut === 'Ctrl+ENTER' && navigator.platform.toUpperCase().indexOf('MAC') >= 0) {
+            displayShortcut = 'Cmd+ENTER';
+        }
+        sourceTextArea.placeholder = `在此输入需要翻译的中文或英文内容...\n${displayShortcut} 快捷翻译`;
+    }
+    updatePlaceholder(); // 初始化调用
+
+    // 支持快捷键翻译 (动态绑定配置的快捷键)
+    sourceTextArea.addEventListener('keydown', function(e) {
+        const shortcutStr = config.shortcut || 'Ctrl+ENTER';
+        const keys = shortcutStr.split('+');
+        const mainKey = keys.pop().toUpperCase(); // 提取主按键
+
+        const needsCtrl = keys.includes('Ctrl');
+        const needsCmd = keys.includes('Cmd');
+        const needsAlt = keys.includes('Alt');
+        const needsShift = keys.includes('Shift');
+
+        let pressedKey = e.key.toUpperCase();
+        if (pressedKey === ' ') pressedKey = 'SPACE';
+
+        // 特殊兼容：如果默认设置为 Ctrl+ENTER，在 Mac 上允许无缝使用 Cmd+ENTER
+        let isMacCmdCompatible = false;
+        if (shortcutStr === 'Ctrl+ENTER' && e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && pressedKey === 'ENTER') {
+            isMacCmdCompatible = true;
+        }
+
+        if (
+            (e.ctrlKey === needsCtrl && e.metaKey === needsCmd && e.altKey === needsAlt && e.shiftKey === needsShift && pressedKey === mainKey) ||
+            isMacCmdCompatible
+        ) {
+            e.preventDefault(); // 拦截默认换行
+            handleTranslate();
+        }
+    });
+
+    // 带有指数退避重试机制的 Fetch 函数
+    async function fetchWithRetry(url, options, retries = 5) {
+        const delays = [1000, 2000, 4000, 8000, 16000];
+        for (let i = 0; i < retries; i++) {
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) {
+                    throw new Error(`HTTP 错误! 状态码: ${response.status}`);
+                }
+                return await response.json();
+            } catch (error) {
+                console.error(`尝试 ${i + 1} 失败:`, error.message);
+                if (i === retries - 1) throw error; // 最后一次尝试仍然失败则抛出错误
+                await new Promise(resolve => setTimeout(resolve, delays[i])); // 等待后重试
+            }
+        }
+    }
+
+    // 核心翻译处理逻辑
+    async function handleTranslate() {
+        const text = sourceTextArea.value.trim();
+        if (!text) {
+            showToast('请输入需要翻译的内容', 'info');
+            return;
+        }
+
+        // 读取最新配置：优先使用用户填写的自定义 Key 和模型
+        const activeApiKey = config.apiKey || apiKey;
+        const activeModel = config.model || 'gemini-2.5-flash-preview-09-2025';
+
+        // UI 状态切换：加载中
+        translateBtn.disabled = true;
+        translateBtn.classList.add('opacity-70', 'cursor-not-allowed');
+
+        // 中间图标旋转动画
+        centerIcon.classList.add('animate-spin', 'text-blue-500');
+        centerIconWrapper.classList.add('border-blue-200', 'shadow-md');
+
+        loadingOverlay.classList.remove('hidden');
+        loadingOverlay.classList.add('flex');
+        targetTextArea.value = '';
+
+        try {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel}:generateContent?key=${activeApiKey}`;
+
+            const payload = {
+                contents: [{
+                    parts: [{ text: text }]
+                }],
+                systemInstruction: {
+                    parts: [{ text: systemInstruction }]
+                }
+            };
+
+            const data = await fetchWithRetry(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            // 解析结果
+            const translatedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (translatedText) {
+                targetTextArea.value = translatedText.trim();
+            } else {
+                throw new Error("API 返回的数据格式异常");
+            }
+
+        } catch (error) {
+            targetTextArea.value = "翻译失败，请检查网络或 API Key 设置。\n\n错误详情: " + error.message;
+            showToast('翻译请求失败', 'error');
+        } finally {
+            // UI 状态切换：恢复
+            translateBtn.disabled = false;
+            translateBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+
+            // 停止动画
+            centerIcon.classList.remove('animate-spin', 'text-blue-500');
+            centerIconWrapper.classList.remove('border-blue-200', 'shadow-md');
+
+            loadingOverlay.classList.add('hidden');
+            loadingOverlay.classList.remove('flex');
+        }
+    }
+
+    // 清空内容
+    function clearAll() {
+        sourceTextArea.value = '';
+        targetTextArea.value = '';
+        charCountEl.textContent = '0 字符';
+        sourceTextArea.focus();
+    }
+
+    // 复制结果
+    function copyResult() {
+        const textToCopy = targetTextArea.value.trim();
+        if (!textToCopy) {
+            showToast('没有可复制的翻译内容', 'info');
+            return;
+        }
+
+        // 优先使用 execCommand 确保在 iframe/各类环境中可用
+        const textArea = document.createElement("textarea");
+        textArea.value = textToCopy;
+        // 避免滚动到页面底部
+        textArea.style.top = "0";
+        textArea.style.left = "0";
+        textArea.style.position = "fixed";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+
+        try {
+            const successful = document.execCommand('copy');
+            if (successful) {
+                showToast('翻译结果已复制', 'success');
+            } else {
+                showToast('复制失败，请手动选择复制', 'error');
+            }
+        } catch (err) {
+            showToast('复制异常', 'error');
+        }
+        document.body.removeChild(textArea);
+    }
+
+    // Toast 提示逻辑
+    let toastTimeout;
+    function showToast(message, type = 'success') {
+        const toast = document.getElementById('toast');
+        const toastMsg = document.getElementById('toastMsg');
+        const toastIcon = document.getElementById('toastIcon');
+
+        toastMsg.textContent = message;
+
+        // 根据类型更新图标和颜色
+        if (type === 'success') {
+            toastIcon.setAttribute('data-lucide', 'check-circle-2');
+            toastIcon.className = 'w-5 h-5 text-green-400';
+        } else if (type === 'error') {
+            toastIcon.setAttribute('data-lucide', 'x-circle');
+            toastIcon.className = 'w-5 h-5 text-red-400';
+        } else {
+            toastIcon.setAttribute('data-lucide', 'info');
+            toastIcon.className = 'w-5 h-5 text-blue-400';
+        }
+        lucide.createIcons(); // 重新渲染更新后的图标
+
+        // 动画控制
+        toast.classList.remove('hidden');
+        // 触发重绘
+        void toast.offsetWidth;
+        toast.classList.remove('toast-enter');
+        toast.classList.add('toast-enter-active');
+
+        clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => {
+            toast.classList.remove('toast-enter-active');
+            toast.classList.add('toast-leave-active');
+
+            setTimeout(() => {
+                toast.classList.add('hidden');
+                toast.classList.remove('toast-leave-active');
+                toast.classList.add('toast-enter');
+            }, 300);
+        }, 3000);
+    }
+
+    // ==========================================
+    // === 桌面客户端特效与窗口控制逻辑 ===
+    // ==========================================
+
+    const appWindow = document.getElementById('appWindow');
+    const appMain = document.getElementById('appMain');
+    const restoreBtn = document.getElementById('restoreBtn');
+    let isMaximized = false;
+    let isMinimized = false;
+
+    // 1. 关闭：隐藏主界面，并浮现一个恢复按钮
+    function handleClose() {
+        appWindow.style.transform = 'scale(0.9)';
+        appWindow.style.opacity = '0';
+        setTimeout(() => {
+            appWindow.classList.add('hidden');
+            restoreBtn.classList.remove('hidden');
+            restoreBtn.classList.add('flex');
+            showToast('客户端已缩小在后台', 'info');
+        }, 300);
+    }
+
+    // 恢复关闭的窗口
+    function handleRestore() {
+        restoreBtn.classList.remove('flex');
+        restoreBtn.classList.add('hidden');
+        appWindow.classList.remove('hidden');
+
+        // 触发重绘以保证动画生效
+        void appWindow.offsetWidth;
+
+        appWindow.style.transform = 'scale(1)';
+        appWindow.style.opacity = '1';
+    }
+
+    // 2. 最小化：隐藏主工作区内容，将头部吸附在右下角悬浮
+    function handleMinimize() {
+        isMinimized = !isMinimized;
+        if (isMinimized) {
+            appMain.classList.add('hidden');
+            appWindow.style.height = 'auto';
+            appWindow.style.minHeight = 'auto';
+            appWindow.style.width = '340px'; // 变成小组件
+            appWindow.classList.add('fixed', 'bottom-6', 'right-6', 'shadow-2xl', 'z-40');
+            appWindow.classList.remove('max-w-5xl', 'shadow-soft');
+        } else {
+            appMain.classList.remove('hidden');
+            appWindow.style.height = isMaximized ? '100vh' : '85vh';
+            appWindow.style.minHeight = '500px';
+            appWindow.style.width = '100%';
+            appWindow.classList.remove('fixed', 'bottom-6', 'right-6', 'shadow-2xl', 'z-40');
+
+            // 如果目前不是最大化状态，加上宽度限制和阴影
+            if (!isMaximized) {
+                appWindow.classList.add('max-w-5xl', 'shadow-soft');
+            } else {
+                appWindow.classList.add('fixed', 'inset-0', 'z-40', 'rounded-none');
+            }
+        }
+    }
+
+    // 3. 最大化：铺满整个浏览器屏幕
+    function handleMaximize() {
+        if (isMinimized) handleMinimize(); // 如果是最小化状态，先恢复展开
+
+        isMaximized = !isMaximized;
+        if (isMaximized) {
+            appWindow.classList.add('fixed', 'inset-0', 'z-40', 'rounded-none');
+            appWindow.classList.remove('max-w-5xl', 'rounded-4xl', 'shadow-soft');
+            appWindow.style.height = '100vh';
+        } else {
+            appWindow.classList.remove('fixed', 'inset-0', 'z-40', 'rounded-none');
+            appWindow.classList.add('max-w-5xl', 'rounded-4xl', 'shadow-soft');
+            appWindow.style.height = '85vh';
+        }
+        window.dispatchEvent(new Event('resize'));
+    }
+
+    // ==========================================
+    // === 模型配置与本地缓存逻辑 ===
+    // ==========================================
+
+    const settingsModal = document.getElementById('settingsModal');
+    const settingsPanel = document.getElementById('settingsPanel');
+    const inputApiKey = document.getElementById('customApiKey');
+    const inputModel = document.getElementById('customModel');
+    const inputShortcut = document.getElementById('customShortcut');
+
+    // 快捷键录制逻辑
+    inputShortcut.addEventListener('keydown', function(e) {
+        e.preventDefault(); // 防止输入默认字符
+
+        // 忽略用户仅单独按下了修饰键的情况
+        const modifiers = ['Control', 'Alt', 'Shift', 'Meta'];
+        if (modifiers.includes(e.key)) return;
+
+        let keys = [];
+        if (e.ctrlKey) keys.push('Ctrl');
+        if (e.metaKey) keys.push('Cmd');
+        if (e.altKey) keys.push('Alt');
+        if (e.shiftKey) keys.push('Shift');
+
+        let keyName = e.key.toUpperCase();
+        if (keyName === ' ') keyName = 'SPACE';
+
+        keys.push(keyName);
+        this.value = keys.join('+');
+    });
+
+    function openSettings() {
+        inputApiKey.value = config.apiKey;
+        inputModel.value = config.model;
+        inputShortcut.value = config.shortcut;
+
+        settingsModal.classList.remove('hidden');
+        settingsModal.classList.add('flex');
+
+        // 使用 requestAnimationFrame 保证动画顺滑执行
+        requestAnimationFrame(() => {
+            settingsModal.classList.remove('opacity-0');
+            settingsPanel.classList.remove('scale-95');
+        });
+    }
+
+    function closeSettings() {
+        settingsModal.classList.add('opacity-0');
+        settingsPanel.classList.add('scale-95');
+        setTimeout(() => {
+            settingsModal.classList.add('hidden');
+            settingsModal.classList.remove('flex');
+        }, 300); // 匹配 CSS duration-300
+    }
+
+    function saveSettings() {
+        config.apiKey = inputApiKey.value.trim();
+        config.model = inputModel.value.trim() || 'gemini-2.5-flash-preview-09-2025';
+        config.shortcut = inputShortcut.value || 'Ctrl+ENTER';
+
+        // 保存至 localStorage 以便下次打开保持有效
+        localStorage.setItem('translate_api_key', config.apiKey);
+        localStorage.setItem('translate_model', config.model);
+        localStorage.setItem('translate_shortcut', config.shortcut);
+
+        // 应用新的快捷键提示
+        updatePlaceholder();
+
+        closeSettings();
+        showToast('配置已保存成功', 'success');
+    }
+</script>
+</body>
+</html>
