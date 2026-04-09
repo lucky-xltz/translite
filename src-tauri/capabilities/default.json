@@ -24,11 +24,18 @@
     "fs:allow-read-text-file",
     "fs:allow-write-text-file",
     "fs:allow-exists",
+    "fs:allow-mkdir",
+    "fs:allow-remove",
+    "fs:allow-stat",
     {
       "identifier": "fs:scope",
       "allow": [
-        "$CONFIG/**"
+        "$CONFIG/**",
+        "$TEMP/**",
+        "$CACHE/**"
       ]
-    }
+    },
+    "shell:allow-open",
+    "process:allow-exit"
   ]
 }

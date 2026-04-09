@@ -82,6 +82,136 @@ fn get_config_path_string() -> String {
     get_config_path().to_string_lossy().to_string()
 }
 
+#[tauri::command]
+async fn download_file(url: String, dest_path: String) -> Result<(), String> {
+    println!("开始下载: {} -> {}", url, dest_path);
+
+    let response = reqwest::get(&url)
+        .await
+        .map_err(|e| format!("下载请求失败: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("下载失败: HTTP {}", response.status()));
+    }
+
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| format!("读取下载内容失败: {}", e))?;
+
+    tokio::fs::write(&dest_path, bytes)
+        .await
+        .map_err(|e| format!("写入文件失败: {}", e))?;
+
+    println!("下载完成: {}", dest_path);
+    Ok(())
+}
+
+#[tauri::command]
+fn get_download_dir() -> Result<String, String> {
+    let cache_dir = dirs::cache_dir()
+        .ok_or_else(|| "无法获取缓存目录".to_string())?;
+    let download_dir = cache_dir.join("translite-updates");
+
+    if !download_dir.exists() {
+        std::fs::create_dir_all(&download_dir)
+            .map_err(|e| format!("创建下载目录失败: {}", e))?;
+    }
+
+    Ok(download_dir.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn open_file(file_path: String) -> Result<(), String> {
+    println!("打开文件: {}", file_path);
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&file_path)
+            .spawn()
+            .map_err(|e| format!("打开文件失败: {}", e))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", &file_path])
+            .spawn()
+            .map_err(|e| format!("打开文件失败: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&file_path)
+            .spawn()
+            .map_err(|e| format!("打开文件失败: {}", e))?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+fn install_update(file_path: String) -> Result<String, String> {
+    println!("安装更新: {}", file_path);
+
+    #[cfg(target_os = "macos")]
+    {
+        if file_path.ends_with(".dmg") {
+            let output = std::process::Command::new("hdiutil")
+                .args(["attach", &file_path, "-nobrowse", "-noverify"])
+                .output()
+                .map_err(|e| format!("挂载 dmg 失败: {}", e))?;
+
+            if !output.status.success() {
+                return Err(format!("挂载失败: {}", String::from_utf8_lossy(&output.stderr)));
+            }
+
+            let dmg_path = std::str::from_utf8(&output.stdout)
+                .map_err(|e| format!("解析挂载路径失败: {}", e))?;
+
+            if let Some(app_path) = dmg_path.lines().find(|l| l.contains("/Volumes/")) {
+                if let Some(mp) = app_path.split_whitespace().next() {
+                    println!("已挂载到: {}", mp);
+                    return Ok(format!("已挂载到: {}", mp));
+                }
+            }
+
+            return Ok(format!("dmg 已挂载: {}", dmg_path));
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if file_path.ends_with(".exe") {
+            std::process::Command::new(&file_path)
+                .args(["/S", "/silent", "/norestart"])
+                .spawn()
+                .map_err(|e| format!("启动安装程序失败: {}", e))?;
+            return Ok("安装程序已启动".to_string());
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        if file_path.ends_with(".AppImage") {
+            std::process::Command::new("chmod")
+                .args(["+x", &file_path])
+                .spawn()
+                .map_err(|e| format!("设置执行权限失败: {}", e))?;
+
+            std::process::Command::new(&file_path)
+                .spawn()
+                .map_err(|e| format!("启动 AppImage 失败: {}", e))?;
+            return Ok("AppImage 已启动".to_string());
+        }
+    }
+
+    open_file(file_path)?;
+    Ok("安装程序已打开".to_string())
+}
+
 fn parse_hotkey(hotkey: &str) -> Option<(Option<Modifiers>, Code)> {
     let mut modifiers = Modifiers::empty();
     let key_part: String;
@@ -168,11 +298,17 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             load_config,
             save_config,
             get_config_path_string,
-            register_hotkey
+            register_hotkey,
+            download_file,
+            get_download_dir,
+            open_file,
+            install_update
         ])
         .setup(|app| {
             // 加载配置并注册快捷键
