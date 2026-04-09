@@ -153,6 +153,11 @@ fn open_file(file_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn get_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+#[tauri::command]
 fn install_update(file_path: String) -> Result<String, String> {
     println!("安装更新: {}", file_path);
 
@@ -308,7 +313,8 @@ pub fn run() {
             download_file,
             get_download_dir,
             open_file,
-            install_update
+            install_update,
+            get_version
         ])
         .setup(|app| {
             // 加载配置并注册快捷键

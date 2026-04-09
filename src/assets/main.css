@@ -16,4 +16,10 @@ html, body, #app {
   height: 100vh;
   overflow: hidden;
   background: white;
+  color-scheme: light;
+}
+
+.dark .window-container {
+  background: #0f172a;
+  color-scheme: dark;
 }

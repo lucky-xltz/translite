@@ -13,8 +13,8 @@ const emit = defineEmits<{
 
 <template>
   <header
-    class="flex items-center justify-between px-6 py-4 border-b bg-white/50"
-    :class="isDark ? 'border-slate-700/50 bg-slate-800/50' : 'border-slate-100/50'"
+    class="flex items-center justify-between px-6 py-4 border-b"
+    :class="isDark ? 'bg-slate-800/50 border-slate-700/50' : 'bg-white/50 border-slate-100/50'"
   >
     <div class="flex items-center gap-3">
       <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 flex items-center justify-center shadow-md">

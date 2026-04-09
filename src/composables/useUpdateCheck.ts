@@ -37,7 +37,7 @@ export interface UpdateInfo {
 
 export function useUpdateCheck() {
   const updateInfo = ref<UpdateInfo>({
-    currentVersion: '0.1.6',
+    currentVersion: '',
     latestVersion: '',
     release: null,
     hasUpdate: false,
@@ -75,6 +75,16 @@ export function useUpdateCheck() {
   async function checkForUpdate(): Promise<UpdateInfo> {
     updateInfo.value.isChecking = true
     updateInfo.value.error = null
+
+    // 如果当前版本为空，先获取版本
+    if (!updateInfo.value.currentVersion) {
+      try {
+        updateInfo.value.currentVersion = await invoke<string>('get_version')
+      } catch (err) {
+        console.error('获取版本失败:', err)
+        updateInfo.value.currentVersion = '0.1.6' // fallback
+      }
+    }
 
     try {
       console.log('开始检查更新...')

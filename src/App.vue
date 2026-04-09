@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import AppHeader from '@/components/AppHeader.vue'
 import TranslatePanel from '@/components/TranslatePanel.vue'
 import SettingsModal from '@/components/SettingsModal.vue'
@@ -7,28 +8,65 @@ import Toast from '@/components/Toast.vue'
 import { useConfig } from '@/composables/useConfig'
 import { useToast } from '@/composables/useToast'
 import { useTranslate } from '@/composables/useTranslate'
+import { useUpdateCheck } from '@/composables/useUpdateCheck'
 
 const { config, configPath, loadConfig, saveConfig } = useConfig()
 const { toastVisible, toastMessage, toastType, showToast } = useToast()
 const { isLoading, translate } = useTranslate()
+const { setCurrentVersion } = useUpdateCheck()
 
 const sourceText = ref('')
 const targetText = ref('')
 const isStreaming = ref(false)
 const settingsModalOpen = ref(false)
-const isDark = ref(false)
-const currentVersion = ref('0.1.4')
+const themeMode = ref<'light' | 'dark' | 'system'>('system')
+const currentVersion = ref('')
+
+const isDark = computed(() => {
+  if (themeMode.value === 'system') {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+  }
+  return themeMode.value === 'dark'
+})
+
+let mediaQuery: MediaQueryList | null = null
+
+function handleSystemThemeChange(_e: MediaQueryListEvent) {
+  if (themeMode.value === 'system') {
+    applyTheme()
+  }
+}
 
 onMounted(async () => {
   await loadConfig()
 
-  const saved = localStorage.getItem('theme')
-  if (saved) {
-    isDark.value = saved === 'dark'
-  } else {
-    isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches
+  // 获取当前应用版本
+  try {
+    currentVersion.value = await invoke<string>('get_version')
+    setCurrentVersion(currentVersion.value)
+  } catch (err) {
+    console.error('获取版本失败:', err)
+    currentVersion.value = '0.1.8' // fallback
+    setCurrentVersion('0.1.8')
   }
+
+  // 读取主题设置
+  const savedTheme = localStorage.getItem('themeMode')
+  if (savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
+    themeMode.value = savedTheme as 'light' | 'dark' | 'system'
+  }
+
+  // 监听系统主题变化
+  mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+  mediaQuery.addEventListener('change', handleSystemThemeChange)
+
   applyTheme()
+})
+
+onUnmounted(() => {
+  if (mediaQuery) {
+    mediaQuery.removeEventListener('change', handleSystemThemeChange)
+  }
 })
 
 function applyTheme() {
@@ -40,8 +78,21 @@ function applyTheme() {
 }
 
 function toggleDark() {
-  isDark.value = !isDark.value
-  localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
+  // 在系统和自动切换之间循环
+  if (themeMode.value === 'system') {
+    themeMode.value = 'dark'
+  } else if (themeMode.value === 'dark') {
+    themeMode.value = 'light'
+  } else {
+    themeMode.value = 'system'
+  }
+  localStorage.setItem('themeMode', themeMode.value)
+  applyTheme()
+}
+
+function setThemeMode(mode: 'light' | 'dark' | 'system') {
+  themeMode.value = mode
+  localStorage.setItem('themeMode', mode)
   applyTheme()
 }
 
@@ -125,9 +176,11 @@ function handleSaveSettings(newConfig: Partial<{ apiKey: string; model: string; 
       :config="config"
       :config-path="configPath"
       :is-dark="isDark"
+      :theme-mode="themeMode"
       :current-version="currentVersion"
       @save="handleSaveSettings"
       @toggle-dark="toggleDark"
+      @set-theme-mode="setThemeMode"
     />
 
     <Toast
